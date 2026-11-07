@@ -1,0 +1,73 @@
+# 화면(클라이언트)을 GitHub Pages에 올리는 작업
+# - main 브랜치에 올릴 때, 그리고 매일 오후 3시 1분·8시 1분(한국 시간)에 다시 빌드해서 최신 이벤트를 반영
+# - 덱 계산은 브라우저에서 함 (빌드 때 계산용 게임 데이터를 만들어 같이 올림)
+# - 스크린샷 인식·카드 썸네일은 구글 클라우드 API 서버(저장소 변수 API_BASE)를 부름
+name: GitHub Pages 배포
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    # GitHub 예약은 UTC 기준: 06:01 UTC = 15:01 KST, 11:01 UTC = 20:01 KST (몇 분 늦게 시작될 수 있음)
+    - cron: "1 6 * * *"
+    - cron: "1 11 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: 패키지 설치
+        run: npm ci
+
+      - name: 브라우저 덱 계산용 게임 데이터 만들기
+        # public/data/kr, public/data/jp, public/data/music_metas.json
+        run: node scripts/build-data.mjs
+
+      - name: 정적 화면에 필요 없는 서버 전용 파일 빼기
+        # API(/api/...)와 서버 예약 작업은 구글 클라우드 서버에서만 돌아감
+        run: rm -rf app/api instrumentation.ts
+
+      - name: 정적 빌드
+        run: npm run build
+        env:
+          BUILD_TARGET: static
+          # 사이트 하위 주소 (저장소 변수 BASE_PATH). 저장소 이름이 sekai-deck이면 /sekai-deck.
+          # 저장소 이름이 "아이디.github.io"라서 주소가 루트이면 BASE_PATH 변수를 만들지 않음
+          NEXT_PUBLIC_BASE_PATH: ${{ vars.BASE_PATH }}
+          # 구글 클라우드 API 서버 주소 (저장소 변수 API_BASE, 예: https://sekai-api.duckdns.org)
+          NEXT_PUBLIC_API_BASE: ${{ vars.API_BASE }}
+
+      - name: GitHub Pages 설정 파일
+        # .nojekyll이 없으면 GitHub Pages가 _next 폴더를 무시해서 화면이 깨짐
+        run: touch out/.nojekyll
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: out
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

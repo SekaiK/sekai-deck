@@ -1,0 +1,24 @@
+# Node / Next.js
+node_modules
+.next
+out
+*.tsbuildinfo
+next-env.d.ts
+
+# 서버에서 받아 두는 카드 썸네일·특징값 (서버마다 새로 만들어짐)
+.cache
+
+# 브라우저 덱 계산용 게임 데이터 (GitHub Actions가 빌드 때 scripts/build-data.mjs로 만듦)
+public/data
+
+# 서버 환경 설정 (비밀값이 들어갈 수 있음)
+.env*.local
+
+# 로그
+*.log
+npm-debug.log*
+
+# 압축 파일
+*.zip
+*.tar.gz
+*.rar
