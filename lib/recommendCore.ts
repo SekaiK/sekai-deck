@@ -5,9 +5,7 @@ import {
   CardCalculator,
   CardPowerCalculator,
   DeckCalculator,
-  EventCalculator,
   EventService,
-  LiveCalculator,
   LiveType,
   type DataProvider,
   type DeckDetail,
@@ -17,7 +15,7 @@ import {
 import { DeckSearchError, searchDecks, type ScoredDeck, type SearchSpec } from "./deckSearch";
 import { clampCharacterRank, clampSkill, emptyGrowth, type Growth, type OwnedCard } from "./presets";
 import type { Region } from "./region";
-import { makeTeamScorer, type Teammate } from "./teamScore";
+import { makeScorer, type Teammate } from "./teamScore";
 
 // ---------- 종합력 계산 보정 ----------
 // 라이브러리는 에어리어 아이템·캐릭터 랭크 보너스를 카드의 세 가지 파워 수치마다 따로 내림해서 더하는데,
@@ -397,11 +395,10 @@ export function createRecommender({ getMasterFile, getMusicMetas }: DataLoaders)
   ): Promise<{ decks: ScoredDeck[]; liveScoreOf: (deck: DeckDetail) => number }> {
     const eventConfig = await new EventService(provider).getEventConfig(eventId, chapterChar);
     if (eventConfig.eventType === undefined) throw new RecommendError("이벤트 종류를 알 수 없어요.");
-    // 팀원을 입력했으면 팀원 정보로, 아니면 라이브러리 기본(5명 모두 내 덱과 같음)으로 점수 계산
-    const team = teammates.length > 0 ? makeTeamScorer(liveType, eventConfig.eventType, teammates) : null;
-    const pointOf = team ? team.point : EventCalculator.getEventPointFunction(liveType, eventConfig.eventType);
-    const liveScoreOf = (deck: DeckDetail) =>
-      team ? team.liveScore(musicMeta, deck) : LiveCalculator.getLiveScoreByDeck(deck, musicMeta, liveType);
+    // 스킬 발동 순서를 라이브 종류에 맞춰 계산 (lib/teamScore.ts 설명 참고)
+    const scorer = makeScorer(liveType, eventConfig.eventType, teammates);
+    const pointOf = scorer.point;
+    const liveScoreOf = (deck: DeckDetail) => scorer.liveScore(musicMeta, deck);
     const honorBonus = await new DeckCalculator(provider).getHonorBonusPower();
     const areaItemLevels = await new AreaItemService(provider).getAreaItemLevels();
     const allCards = await new CardCalculator(provider).batchGetCardDetail(userCards, {}, eventConfig, areaItemLevels);

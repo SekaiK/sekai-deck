@@ -8,6 +8,13 @@ export interface PatchNote {
 
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: "2.7",
+    title: "스크린샷 추가 권장 브라우저 안내",
+    items: [
+      "스크린샷으로 보유 카드를 추가할 때, 휴대폰에서는 크롬이나 삼성 인터넷 브라우저를 권장해요. 아이폰 Safari 등 일부 브라우저에서는 카드 칸을 찾지 못할 수 있어요.",
+    ],
+  },
+  {
     version: "2.6",
     title: "점수 계산 정확도 개선",
     items: [

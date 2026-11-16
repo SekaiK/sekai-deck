@@ -20,6 +20,9 @@ type Candidate = { cardId: number; trained: boolean; distance: number };
 /** 가장 비슷한 카드와의 차이가 이보다 크면 일러스트를 알아볼 수 없는 칸으로 보고 뺌 (제대로 맞은 카드는 보통 3~10) */
 const MAX_MATCH_DISTANCE = 15;
 
+/** 칸을 찾지 못했을 때 덧붙이는 권장 브라우저 안내 */
+const BROWSER_TIP = " 사진이 맞는데도 안 되면 크롬이나 삼성 인터넷 브라우저로 다시 시도해 주세요.";
+
 interface Row {
   key: string;
   tileUrl: string;
@@ -137,7 +140,7 @@ export default function ScreenshotImport({
           message:
             cut > 0
               ? `사진 가장자리에서 잘린 카드 ${cut}장만 있어서 뺐어요. 카드가 온전히 보이게 캡처해 주세요.`
-              : "카드 칸을 찾지 못했어요. 게임의 카드 목록 화면을 스킬 레벨 띠가 보이게 캡처해 주세요. 너무 작게 찍히면 인식이 안 돼요.",
+              : `카드 칸을 찾지 못했어요. 게임의 카드 목록 화면을 스킬 레벨 띠가 보이게 캡처해 주세요. 너무 작게 찍히면 인식이 안 돼요.${BROWSER_TIP}`,
         });
         return;
       }
@@ -162,7 +165,7 @@ export default function ScreenshotImport({
       if (recognizable.length === 0) {
         setStatus({
           kind: "error",
-          message: `찾은 칸 ${found.length}개 모두 일러스트로 카드를 알아볼 수 없어서 뺐어요. 카드가 가려지지 않게 캡처해 주세요.`,
+          message: `찾은 칸 ${found.length}개 모두 일러스트로 카드를 알아볼 수 없어서 뺐어요. 카드가 가려지지 않게 캡처해 주세요.${BROWSER_TIP}`,
         });
         return;
       }
@@ -293,6 +296,11 @@ export default function ScreenshotImport({
               다른 정렬에서는 카드 아래 띠에 스킬 레벨 대신 다른 값이 나와서, 카드 칸을 찾지 못하거나 스킬 레벨을 잘못 읽어요.
             </p>
           </div>
+          <p className="hint">
+            📱 휴대폰에서는 <strong>크롬</strong>이나 <strong>삼성 인터넷</strong> 브라우저를 권장해요. 다른 브라우저(특히 아이폰
+            Safari)에서는 보안 기능 때문에 카드 칸을 찾지 못할 수 있어요. 그럴 땐 크롬으로 열거나, 스크린샷을 PC로 옮겨서 올려
+            주세요.
+          </p>
           <div className="shot-actions">
             <button type="button" onClick={() => fileRef.current?.click()} disabled={status.kind === "working"}>
               스크린샷 고르기

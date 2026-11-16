@@ -45,14 +45,24 @@ jobs:
         run: rm -rf app/api instrumentation.ts
 
       - name: 정적 빌드
-        run: npm run build
         env:
           BUILD_TARGET: static
-          # 사이트 하위 주소 (저장소 변수 BASE_PATH). 저장소 이름이 sekai-deck이면 /sekai-deck.
-          # 저장소 이름이 "아이디.github.io"라서 주소가 루트이면 BASE_PATH 변수를 만들지 않음
-          NEXT_PUBLIC_BASE_PATH: ${{ vars.BASE_PATH }}
           # 구글 클라우드 API 서버 주소 (저장소 변수 API_BASE, 예: https://sekai-api.duckdns.org)
           NEXT_PUBLIC_API_BASE: ${{ vars.API_BASE }}
+          BASE_PATH_VAR: ${{ vars.BASE_PATH }}
+        run: |
+          # 사이트 하위 주소: 저장소 변수 BASE_PATH가 있으면 그 값, 없으면 저장소 이름(/sekai-deck)
+          # 저장소 이름이 "아이디.github.io"면 하위 주소 없음
+          REPO="${GITHUB_REPOSITORY#*/}"
+          BASE="$BASE_PATH_VAR"
+          if [ -z "$BASE" ] && [[ "$REPO" != *.github.io ]]; then BASE="/$REPO"; fi
+          echo "사이트 하위 주소: '$BASE'"
+          echo "API 서버 주소: '$NEXT_PUBLIC_API_BASE'"
+          if [[ -n "$NEXT_PUBLIC_API_BASE" && "$NEXT_PUBLIC_API_BASE" != https://* ]]; then
+            echo "::error::API_BASE 변수는 https://로 시작해야 해요. 지금 값: $NEXT_PUBLIC_API_BASE"
+            exit 1
+          fi
+          NEXT_PUBLIC_BASE_PATH="$BASE" npm run build
 
       - name: GitHub Pages 설정 파일
         # .nojekyll이 없으면 GitHub Pages가 _next 폴더를 무시해서 화면이 깨짐
