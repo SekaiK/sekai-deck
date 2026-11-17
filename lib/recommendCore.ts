@@ -140,6 +140,8 @@ export interface RecommendInput {
   worldBloomCharacterId?: number | null;
   /** 멀티·치어풀: 직접 입력한 팀원 정보 (최대 4명, 입력하지 않은 자리는 내 덱과 같다고 봄) */
   teammates?: Teammate[];
+  /** 실효 스킬 최소 기준(%). 이 값 이상인 덱 중에서 이벤트 포인트가 가장 높은 덱을 찾음 */
+  minEffectiveSkill?: number | null;
   /** 서버 (없으면 한국 서버) */
   region?: Region;
 }
@@ -167,6 +169,8 @@ export interface RecommendResult {
   teammatesUsed: number;
   /** 이벤트가 끝난 뒤에 출시돼서 계산에서 뺀 보유 카드 수 */
   excludedByRelease: number;
+  /** 적용한 실효 스킬 최소 기준(%) */
+  minEffectiveSkill?: number;
   musicId: number;
   difficulty: string;
   decks: {
@@ -381,7 +385,7 @@ export function createRecommender({ getMasterFile, getMusicMetas }: DataLoaders)
 
   /**
    * 덱 찾기: 이벤트 설정과 보유 카드 상세를 만들고, 빠른 탐색(lib/deckSearch.ts)으로 좋은 덱 3개를 고른다.
-   * 고정 카드·캐릭터·리더 조건과 월드 링크 챕터, 멀티 라이브 팀원 정보도 이 탐색에서 함께 처리한다.
+   * 고정 카드·캐릭터·리더 조건, 실효 스킬 기준, 월드 링크 챕터, 멀티 라이브 팀원 정보도 이 탐색에서 함께 처리한다.
    */
   async function findDecks(
     provider: DataProvider,
@@ -607,6 +611,9 @@ export function createRecommender({ getMasterFile, getMusicMetas }: DataLoaders)
     // 팀원 정보는 멀티·치어풀 라이브에서만 의미가 있음
     const teammates =
       liveType === LiveType.MULTI || liveType === LiveType.CHEERFUL ? (input.teammates ?? []).slice(0, 4) : [];
+    // 실효 스킬 최소 기준 (없거나 0이면 기준 없음)
+    const minEffectiveSkill =
+      input.minEffectiveSkill && Number(input.minEffectiveSkill) > 0 ? Number(input.minEffectiveSkill) : undefined;
 
     const { decks, liveScoreOf } = await findDecks(
       provider,
@@ -614,7 +621,13 @@ export function createRecommender({ getMasterFile, getMusicMetas }: DataLoaders)
       liveType,
       musicMeta,
       userCards,
-      { cards: fixedIds, leader: fixedLeader, characters: fixedCharIds, leaderCharacter: leaderChar },
+      {
+        cards: fixedIds,
+        leader: fixedLeader,
+        characters: fixedCharIds,
+        leaderCharacter: leaderChar,
+        minEffectiveSkill: minEffectiveSkill ?? null,
+      },
       chapterChar,
       teammates,
     );
@@ -629,6 +642,7 @@ export function createRecommender({ getMasterFile, getMusicMetas }: DataLoaders)
       worldBloomCharacterId: chapterChar,
       teammatesUsed: teammates.length,
       excludedByRelease,
+      minEffectiveSkill,
       musicId: metaSource === "average" ? RANDOM_MUSIC_ID : musicMeta.music_id,
       difficulty: musicMeta.difficulty,
       decks: decks.map((d) => ({

@@ -340,11 +340,16 @@ export default function CardBrowser({ snapshot }: { snapshot: MasterSnapshot }) 
         </div>
       </div>
 
-      {checkMode && (
+      {checkMode ? (
         <p className="hint">
           카드를 누르면 보유로 체크됩니다. 체크한 카드는 특훈 여부, 스킬 레벨, 마이세카이 캔버스 제작 여부, 사이드 스토리
           전편·후편 읽음 여부, 마스터 랭크를 고를 수 있어요. &quot;모두 최대치&quot;는 보이는 보유 카드를 특훈·스킬 레벨
           4·마스터 랭크 5·캔버스·사이드 스토리 완료로 한 번에 바꿔요. 필터로 범위를 좁혀서 쓸 수 있어요.
+        </p>
+      ) : (
+        <p className="hint card-detail-tip">
+          💡 카드마다 <strong>마이세카이 캔버스</strong>, <strong>사이드 스토리</strong>(전편·후편), 특훈, 스킬 레벨, 마스터 랭크는{" "}
+          <strong>체크 시작</strong>을 누른 뒤 보유로 체크한 카드 아래에서 확인하고 바꿀 수 있어요.
         </p>
       )}
 

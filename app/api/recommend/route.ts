@@ -30,6 +30,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "요청 형식이 잘못되었습니다." }, { status: 400 });
   }
 
+  const minEff = Number(body.minEffectiveSkill);
   const input: RecommendInput = {
     eventId: Number(body.eventId),
     liveType: LIVE_KINDS.includes(body.liveType as LiveKind) ? (body.liveType as LiveKind) : "multi",
@@ -51,6 +52,7 @@ export async function POST(req: Request) {
     worldBloomCharacterId:
       Number(body.worldBloomCharacterId) >= 1 && Number(body.worldBloomCharacterId) <= 26 ? Number(body.worldBloomCharacterId) : null,
     teammates: parseTeammates(body.teammates),
+    minEffectiveSkill: Number.isFinite(minEff) && minEff > 0 && minEff <= 1000 ? minEff : null,
     region: regionOfRequest(req, body.region),
   };
   if (!Number.isFinite(input.eventId) || input.eventId <= 0) {

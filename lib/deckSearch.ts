@@ -3,6 +3,7 @@
 // 방법: 여러 기준(이벤트 보너스, 종합력, 스킬)으로 시작 덱을 만들고, 한 자리씩 다른 카드로 바꿔 보며
 // 이벤트 포인트가 오르는 동안 계속 바꾼다(언덕 오르기). 바꿔 보는 중에 본 덱도 모두 후보로 모아 상위 덱을 고른다.
 // 과거 이벤트로 비교했을 때 라이브러리 결과보다 낮은 경우가 없었고, 보너스 캐릭터가 흩어진 이벤트에서는 더 좋은 덱을 찾기도 했다.
+// 실효 스킬 최소 기준이 있으면, 기준을 채우지 못한 덱은 후보에서 빼고 탐색도 기준을 채우는 쪽으로 움직인다.
 import { CardCalculator, DeckCalculator, type CardDetail, type DeckDetail, type EventConfig } from "sekai-calculator";
 
 export type ScoredDeck = DeckDetail & { score: number };
@@ -16,6 +17,8 @@ export interface SearchSpec {
   characters: number[];
   /** 리더로 고정할 캐릭터 (characters 중 하나) */
   leaderCharacter: number | null;
+  /** 실효 스킬(리더 스킬 + 나머지 4장 스킬 합 × 0.2)이 이 값(%) 이상인 덱만 */
+  minEffectiveSkill?: number | null;
 }
 
 export interface SearchContext {
@@ -59,6 +62,10 @@ const num = (v: unknown) => {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const maxOf = (m: any) => num(m?.max);
 
+/** 실효 스킬: 리더(첫 카드) 스킬 + 나머지 4장 스킬 합 × 0.2 */
+const effectiveOf = (detail: DeckDetail) =>
+  detail.cards.reduce((sum, c, i) => sum + (i === 0 ? c.skill.scoreUp : c.skill.scoreUp * 0.2), 0);
+
 export function searchDecks(ctx: SearchContext, spec: SearchSpec, limit = 3): ScoredDeck[] {
   const deadline = Date.now() + (ctx.timeLimitMs ?? 20_000);
   const byId = new Map(ctx.allCards.map((c) => [c.cardId, c]));
@@ -68,6 +75,7 @@ export function searchDecks(ctx: SearchContext, spec: SearchSpec, limit = 3): Sc
   const blocked = new Set([...fixedCardChars, ...charSlots]);
   const freeCount = 5 - fixedCards.length - charSlots.length;
   if (freeCount < 0) throw new DeckSearchError("카드와 캐릭터를 합쳐 5개까지 고정할 수 있어요.");
+  const minEff = spec.minEffectiveSkill && spec.minEffectiveSkill > 0 ? spec.minEffectiveSkill : null;
 
   const pool = dropDominated(ctx.pool);
   const freePool = pool.filter((c) => !blocked.has(c.characterId));
@@ -100,7 +108,8 @@ export function searchDecks(ctx: SearchContext, spec: SearchSpec, limit = 3): Sc
       // 종합력 상한이 있는 이벤트(일부 월드 링크 등)는 상한을 넘는 종합력을 잘라서 계산
       ctx.eventConfig.totalPowerLimit,
     );
-  const evaluate = (deck: CardDetail[]): { detail: DeckDetail; score: number } | null => {
+  let bestEffSeen = 0;
+  const evaluate = (deck: CardDetail[]): { detail: DeckDetail; score: number; ok: boolean; eff: number } | null => {
     let order = [...deck];
     const leaderIdx =
       spec.leader !== null
@@ -123,8 +132,15 @@ export function searchDecks(ctx: SearchContext, spec: SearchSpec, limit = 3): Sc
       }
     }
     const score = ctx.score(detail);
-    return Number.isFinite(score) ? { detail, score } : null;
+    const eff = effectiveOf(detail);
+    if (eff > bestEffSeen) bestEffSeen = eff;
+    const ok = minEff === null || eff >= minEff - 1e-9;
+    return Number.isFinite(score) ? { detail, score, ok, eff } : null;
   };
+  // 실효 스킬 기준을 못 채운 덱은 아주 낮게 매기되, 실효 스킬이 높을수록 조금씩 높게 매겨서
+  // 탐색이 기준을 채우는 쪽으로 움직이게 함 (기준을 채운 덱은 항상 그보다 높음)
+  const UNMET = -1e12;
+  const objectiveOf = (r: { score: number; ok: boolean; eff: number }) => (r.ok ? r.score : UNMET + r.eff * 1e6 + r.score);
 
   // deck 배열: [고정 카드..., 캐릭터 고정 칸..., 자유 칸...]
   const nFixed = fixedCards.length;
@@ -134,15 +150,17 @@ export function searchDecks(ctx: SearchContext, spec: SearchSpec, limit = 3): Sc
       .map((c) => c.cardId)
       .sort((a, b) => a - b)
       .join(",");
-  const found = new Map<string, { deck: CardDetail[]; score: number }>();
+  const found = new Map<string, { deck: CardDetail[]; score: number; ok: boolean; obj: number }>();
   const record = (deck: CardDetail[]): number => {
     const key = keyOf(deck);
     const hit = found.get(key);
-    if (hit) return hit.score;
+    if (hit) return hit.obj;
     const r = evaluate(deck);
-    const s = r ? r.score : -Infinity;
-    found.set(key, { deck, score: s });
-    return s;
+    const entry = r
+      ? { deck, score: r.score, ok: r.ok, obj: objectiveOf(r) }
+      : { deck, score: -Infinity, ok: false, obj: -Infinity };
+    found.set(key, entry);
+    return entry.obj;
   };
 
   const climb = (start: CardDetail[]) => {
@@ -197,7 +215,15 @@ export function searchDecks(ctx: SearchContext, spec: SearchSpec, limit = 3): Sc
     }
   }
 
-  const ranked = [...found.values()].filter((f) => f.score > -Infinity).sort((a, b) => b.score - a.score);
-  if (ranked.length === 0) throw new DeckSearchError("조건에 맞는 덱을 찾지 못했어요.");
+  const ranked = [...found.values()].filter((f) => f.ok && f.score > -Infinity).sort((a, b) => b.score - a.score);
+  if (ranked.length === 0) {
+    if (minEff !== null) {
+      const best = Math.floor(bestEffSeen * 10) / 10;
+      throw new DeckSearchError(
+        `실효 스킬 ${minEff}% 이상인 덱을 찾지 못했어요. 지금 조건으로 만들 수 있는 가장 높은 실효 스킬은 약 ${best}%예요. 기준을 낮추거나 고정한 카드·캐릭터를 바꿔 보세요.`,
+      );
+    }
+    throw new DeckSearchError("조건에 맞는 덱을 찾지 못했어요.");
+  }
   return ranked.slice(0, limit).map(({ deck, score }) => Object.assign(evaluate(deck)!.detail, { score }));
 }

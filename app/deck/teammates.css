@@ -74,3 +74,20 @@
   color: var(--ink);
   cursor: pointer;
 }
+
+/* ---------- 실효 스킬 최소 기준 ---------- */
+.min-skill-input {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.min-skill-input input {
+  width: 96px;
+  height: 36px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--paper);
+  color: var(--ink);
+  text-align: right;
+}

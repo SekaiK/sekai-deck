@@ -158,6 +158,10 @@ export default function DeckHelper({
   );
   const selectedSong = songs.all.find((s) => s.id === musicId);
   const [difficulty, setDifficulty] = useState("expert");
+  // 실효 스킬 최소 기준 (비우면 기준 없음)
+  const [minSkill, setMinSkill] = useState("");
+  const minSkillValue = Number(minSkill);
+  const minEffectiveSkill = minSkill !== "" && Number.isFinite(minSkillValue) && minSkillValue > 0 ? minSkillValue : null;
   const [loadingId, setLoadingId] = useState<number | null>(null);
   const [errors, setErrors] = useState<Record<number, string>>({});
   const [saved, setSaved] = useState<Record<number, Saved>>({});
@@ -301,6 +305,7 @@ export default function DeckHelper({
         worldBloomCharacterId: chapterChar ?? null,
         // 팀원 정보는 멀티(치어풀) 라이브에서만 보냄
         teammates: liveType === "multi" ? teammates : [],
+        minEffectiveSkill,
         region,
       });
       setSaved((s) => ({
@@ -463,6 +468,23 @@ export default function DeckHelper({
                   </div>
                 </fieldset>
 
+                <label className="field min-skill">
+                  <span>실효 스킬 최소</span>
+                  <span className="min-skill-input">
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      min={0}
+                      step={1}
+                      placeholder="제한 없음"
+                      value={minSkill}
+                      onChange={(e) => setMinSkill(e.target.value)}
+                      aria-label="실효 스킬 최소 기준(%)"
+                    />
+                    %
+                  </span>
+                </label>
+
                 <label className="field grow">
                   <span>곡</span>
                   <select value={musicId} onChange={(e) => setMusicId(Number(e.target.value))}>
@@ -507,6 +529,13 @@ export default function DeckHelper({
                   {loadingId === event.id ? "계산 중…" : current ? "다시 계산" : "최적 덱 찾기"}
                 </button>
               </section>
+
+              {minEffectiveSkill !== null && (
+                <p className="hint">
+                  실효 스킬이 {fmtSkill(minEffectiveSkill)}% 이상인 덱 중에서 이벤트 포인트가 가장 높은 덱을 찾아요. 비우면
+                  조건 없이 찾아요.
+                </p>
+              )}
 
               {chapters.length > 0 && (
                 <p className="hint">
@@ -838,11 +867,17 @@ function Results({
           {RESULT_LIVE_LABEL[result.liveType]} 1회 기준, &quot;{saved.presetName}&quot; 프리셋
           {result.worldBloomCharacterId !== undefined && `, ${charName.get(result.worldBloomCharacterId)} 챕터`}
           {isTeamLive && teamUsed > 0 && `, 팀원 ${teamUsed}명 입력값 반영`}
+          {result.minEffectiveSkill !== undefined && `, 실효 스킬 ${fmtSkill(result.minEffectiveSkill)}% 이상`}
           {result.metaSource === "estimated" && <span className="est-badge">추정</span>}
           {result.metaSource === "average" && <span className="est-badge">평균</span>}
         </p>
         {excluded > 0 && (
           <p className="hint">이 이벤트가 끝난 뒤에 출시된 보유 카드 {excluded}장은 빼고 계산했어요.</p>
+        )}
+        {result.minEffectiveSkill !== undefined && (
+          <p className="hint">
+            실효 스킬 {fmtSkill(result.minEffectiveSkill)}% 이상인 덱만 골랐어요. 아래 다른 후보도 모두 이 조건을 채워요.
+          </p>
         )}
         {saved.fixed.length + saved.chars.length > 0 && (
           <p className="hint">
